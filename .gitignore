@@ -1,15 +1,7 @@
-# Byte compiled
-__pycache__/
-*.py[cod]
-*.pyo
-
-# Virtual environments
-.venv/
-env/
 venv/
-
-# OS files
-.DS_Store
-
-# Pytest cache
+system.log
+src/system.log
+__pycache__/
+*.pyc
 .pytest_cache/
+*.pyc
