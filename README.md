@@ -55,7 +55,7 @@ User Profile + songs.csv
   pytest test suite     ← 20 tests covering scoring, RAG, guardrails, confidence
 ```
 
-The system architecture diagram image is in `/assets/system_diagram.png`.
+![System Architecture Diagram](assets/context_aware_dj_system_diagram.svg)
 
 **Three layers of reliability:**
 1. Guardrail check prevents wrong bios from reaching the LLM
