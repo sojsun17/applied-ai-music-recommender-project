@@ -1,212 +1,304 @@
-# 🎵 Music Recommender Simulation
+# 🎧 Context-Aware AI DJ — Music Recommender with RAG
 
-## Project Summary
-
-In this project you will build and explain a small music recommender system.
-
-Your goal is to:
-
-- Represent songs and a user "taste profile" as data
-- Design a scoring rule that turns that data into recommendations
-- Evaluate what your system gets right and wrong
-- Reflect on how this mirrors real world AI recommenders
-
-Replace this paragraph with your own summary of what your version does.
+> A content-based music recommender that acts as a real DJ: it scores songs against your taste profile, retrieves artist knowledge from a local knowledge base, verifies it with a guardrail, and uses an LLM to generate a personalised DJ introduction for every recommendation.
 
 ---
 
-## How The System Works
+## Original Project (Modules 1–3)
 
-Explain your design in plain language.
+This project is built on top of **VibeRank v1.0**, a content-based filtering music recommender originally developed in Modules 1–3. The original system loaded a CSV of 20 songs, scored each track against a user's genre, mood, and energy preferences using a weighted formula, and returned a ranked list of top-k recommendations with score explanations. It demonstrated how recommender systems work under the hood — turning music attributes into numbers and comparing them to user preferences — but had no AI integration, no natural language output, and no knowledge retrieval.
 
-My version of the recommender system uses a weighted content-based filtering approach, where each song is treated as a set of attributes and compared against a user’s personalized “Vibe Profile.” Each song is described by its genre and mood, which are categorical features, as well as its energy level, which is a numerical value between 0.0 and 1.0. The user profile stores their ideal preferences for these same attributes, allowing the system to measure how well each song aligns with what they’re looking for. The scoring logic prioritizes genre as the strongest signal, awarding +2.0 points for a match, followed by mood with +1.0 point. Energy is handled differently, using a linear decay formula (1.0 − |UserEnergy − SongEnergy|) to reward songs that are closest to the user’s desired energy level rather than simply favoring high or low values. After calculating a total score for every song in the dataset, the system sorts all songs from highest to lowest score and returns the top K recommendations.
-
-Song Features: title, genre, mood, energy (float).
-
-UserProfile Features: fav_genre, fav_mood, target_energy (float).
-
-
-My current plan:
-My version of the recommender uses a Weighted Content-Based Filtering approach. It treats every song as a collection of data points and compares them against a user's specific "Vibe Profile."
-
-Data Features
-Song Features: title, genre, mood, energy (0.0–1.0).
-
-UserProfile: favorite_genre, favorite_mood, target_energy.
-
-System Architecture & Logic
-The following flowchart visualizes how a single user profile is compared against the entire song catalog to produce a ranked list:
-
-![System Workflow](images/copilotGeneratedWorkflow.png)
-
-The Algorithm Recipe
-Genre Anchor (+2.0): If the song genre matches the user's preference, it receives a heavy bonus. This ensures the recommendation stays within the user's preferred style.
-
-Mood Modifier (+1.0): If the mood matches, a secondary bonus is applied to refine the "feeling" of the recommendation.
-
-Energy Proximity (Up to +1.0): Calculated as 1.0 - abs(user_energy - song_energy). This rewards songs that are closer to the user's target intensity.
-
-Final Ranking: All scores are summed (max 4.0), and the system sorts the songs to return the Top K results.
-
-Potential Biases
-Genre Over-Prioritization: Because Genre is worth twice as much as Mood, the system may ignore a perfectly "Sad" song if it belongs to a different genre, potentially creating a "Genre Filter Bubble."
-
-Small Catalog Limitation: With only 20 songs, the system might struggle to find a "perfect" match, leading to recommendations that only meet one of the three criteria.
 ---
 
-## Getting Started
+## What This Project Does and Why It Matters
 
-### Setup
+The **Context-Aware AI DJ** extends the original recommender into a full RAG-powered system. Instead of just printing a ranked list, it explains *why* each song fits your current moment by combining:
 
-1. Create a virtual environment (optional but recommended):
+- **Content-based scoring** (genre, mood, energy, acousticness)
+- **Retrieval-Augmented Generation** — pulling real artist facts from a local knowledge base before calling the LLM
+- **A guardrail system** — verifying bios match their artists before using them
+- **Contextual LLM generation** — producing a DJ-style introduction that connects the song's musical qualities to what the user is actually doing right now (studying, commuting, working out, etc.)
 
-   ```bash
-   python -m venv .venv
-   source .venv/bin/activate      # Mac or Linux
-   .venv\Scripts\activate         # Windows
+This matters because it shows how a simple scoring algorithm becomes significantly more useful and trustworthy when paired with retrieval and reliability mechanisms — the same architecture used in production RAG systems at scale.
 
-2. Install dependencies
+---
 
+## System Architecture Overview
+
+```
+User Profile + songs.csv
+        │
+        ▼
+  score_song()          ← genre +2.0, mood +1.0, energy ×2.0, acoustic +0.5
+        │
+        ▼
+  recommend_songs()     ← rank all songs, return top-k
+        │
+        ├──────────────────────────────────────┐
+        ▼                                      ▼
+  load_artist_bio()              knowledge_base/*.txt
+  (slug-based file lookup)
+        │
+        ▼
+  guardrail_check()     ← verify artist name appears in bio
+        │
+        ├── PASS → bio passed to LLM prompt
+        └── FAIL → logged, bio discarded, fallback to metadata only
+        │
+        ▼
+  generate_dj_script()  ← LLM call (OpenRouter / Llama 3.1)
+        │
+        ▼
+  DJ Set Output         + system.log (timestamp, score, confidence, guardrail status)
+        │
+        ▼
+  pytest test suite     ← 20 tests covering scoring, RAG, guardrails, confidence
+```
+
+The system architecture diagram image is in `/assets/system_diagram.png`.
+
+**Three layers of reliability:**
+1. Guardrail check prevents wrong bios from reaching the LLM
+2. Confidence score (0.0–1.0) rates how relevant each recommendation is
+3. All recommendations are logged to `system.log` with full metadata
+
+---
+
+## Project Structure
+
+```
+applied-ai-music-recommender/
+├── src/
+│   ├── main.py              # Entry point — runs Mode 1 (scoring) and Mode 2 (AI DJ)
+│   └── recommender.py       # All logic: scoring, RAG, guardrail, LLM, logging
+├── tests/
+│   └── test_recommender.py  # 20 pytest tests
+├── data/
+│   └── songs.csv            # 20-song library with audio features
+├── knowledge_base/
+│   ├── radiohead.txt
+│   ├── johnny_cash.txt
+│   ├── green_day.txt
+│   ├── soundgarden.txt
+│   ├── neon_echo.txt
+│   └── loroom.txt
+├── assets/
+│   └── system_diagram.png
+├── model_card.md
+├── requirements.txt
+└── README.md
+```
+
+---
+
+## Setup Instructions
+
+### Prerequisites
+- Python 3.10 or higher
+- A free [OpenRouter](https://openrouter.ai) API key (sign up → Keys → Create key)
+
+### 1. Clone the repository
+```bash
+git clone https://github.com/YOUR_USERNAME/applied-ai-music-recommender.git
+cd applied-ai-music-recommender
+```
+
+### 2. Create and activate a virtual environment
+```bash
+python3 -m venv venv
+source venv/bin/activate        # Mac/Linux
+venv\Scripts\activate           # Windows
+```
+
+### 3. Install dependencies
 ```bash
 pip install -r requirements.txt
 ```
 
-3. Run the app:
-
+### 4. Set your API key
 ```bash
-python -m src.main
+export OPENROUTER_API_KEY=your_key_here    # Mac/Linux
+set OPENROUTER_API_KEY=your_key_here       # Windows
 ```
 
-### Running Tests
-
-Run the starter tests with:
-
+To make this permanent on Mac/Linux, add it to `~/.zshrc`:
 ```bash
-pytest
+echo 'export OPENROUTER_API_KEY=your_key_here' >> ~/.zshrc
+source ~/.zshrc
 ```
 
-You can add more tests in `tests/test_recommender.py`.
+### 5. Run the project
+```bash
+cd src
+python3 main.py
+```
+
+Mode 1 (offline scoring) runs automatically. To enable Mode 2 (AI DJ with LLM), open `src/main.py` and uncomment the Mode 2 block (remove the `'''` triple quotes around it).
+
+### 6. Run the tests
+```bash
+cd tests
+pytest test_recommender.py -v
+```
 
 ---
 
-## Experiments You Tried
+## Sample Interactions
 
-When I shifted the algorithm's focus, the system’s behavior changed from being a rigid "Genre-First" filter to a more fluid "Vibe-First" recommender. Reducing the genre weight from 2.0 to 0.5 caused the system to stop gatekeeping by category; instead of only seeing Rock songs for my "Melancholic Rock" profile, the system began suggesting "Sad" songs from any genre that hit the target energy of 0.55. When experimenting with technical features like tempo, the results became even more granular, though it risked over-complicating the "vibe" by penalizing great songs just for being a few BPM off. Across different users, the system proved highly adaptive: it successfully isolated "Library Rain" for the Chill Lofi fan and "Black Hole Sun" for the Rock fan, but the "Adversarial" test revealed a key bias—if energy is weighted too heavily, the system completely ignores the user's emotional "Mood" preference in favor of raw intensity.
+### Profile 1 — Melancholic Rock (Relaxing)
+**Input:**
+```python
+{
+    "favorite_genres": ["rock"],
+    "favorite_mood": "sad",
+    "target_energy": 0.55,
+    "current_context": "Relaxing"
+}
+```
+**Output (Mode 1 — top result):**
+```
+Black Hole Sun by Soundgarden  |  Score: 5.00
+Because: Genre match (+2.0); Mood match (+1.0); Energy match x2.0 (+2.00)
+```
+**Output (Mode 2 — AI DJ script):**
+```
+🎙️ "Alright, folks, time to sink into that relaxing vibe. Coming up next, a haunting tune
+to match your somber mood — it's 'Black Hole Sun' from the legendary Soundgarden. This
+one's a slow burn at 105 BPM; let Chris Cornell's soaring vocals whisk you away to a place
+of introspective calm."
+```
+*Confidence: 50% — Soundgarden bio found and verified, energy in relaxing range.*
 
-**Baseline Pop Results:**
-![Baseline Results](images/baseline.png)
-
-**Custom Melancholic Rock Results:**
-![Rock Results](images/recOutput.png)
-
-**Diverse Profiles Batch Test:**
-![Multiple Profiles](images/testingMultiple.png)
 ---
 
-## Limitations and Risks
+### Profile 2 — Chill Lofi (Studying)
+**Input:**
+```python
+{
+    "favorite_genres": ["lofi"],
+    "favorite_mood": "chill",
+    "target_energy": 0.2,
+    "likes_acoustic": True,
+    "current_context": "Studying"
+}
+```
+**Output (Mode 1 — top result):**
+```
+Library Rain by Paper Lanterns  |  Score: 5.20
+Because: Genre match (+2.0); Mood match (+1.0); Energy match x2.0 (+1.70); Acoustic preference match (+0.5)
+```
+**Output (Mode 2 — AI DJ script):**
+```
+🎙️ "Hey there, bookworms! Let's keep the chill vibes going — 'Library Rain' by Paper Lanterns
+clocks in at a steady 72 BPM with an acousticness of 0.86, the perfect calm backdrop to
+help you power through those notes without losing focus."
+```
 
-
-The primary limitation of this recommender is its heavy reliance on manual tagging, meaning if a song is mislabeled in the CSV, it effectively disappears from relevant searches. Because the system lacks natural language processing, it has no understanding of lyrics or cultural context; it cannot tell the difference between a song that is "Sad" because of its melody and one that is "Sad" because of its story. Furthermore, the small catalog of only 20 tracks creates a diversity bottleneck, where the same "perfect matches" like Black Hole Sun will always dominate the top results, creating a "Filter Bubble" that prevents users from discovering new genres. Finally, the linear energy math is a blunt instrument that treats all energy gaps equally, failing to account for how human ears perceive the difference between "chill" and "intense" music across different styles.
-![Adversarial Bias Test](images/adversary.png)
 ---
 
+### Profile 3 — Adversarial: High-Energy Weeper (Working Out)
+**Input:**
+```python
+{
+    "favorite_genres": ["pop"],
+    "favorite_mood": "sad",
+    "target_energy": 0.95,
+    "current_context": "Working out"
+}
+```
+**Output (Mode 1 — top result):**
+```
+Gym Hero by Max Pulse  |  Score: 3.96
+Because: Genre match (+2.0); Energy match x2.0 (+1.96)
+```
+**Output (Mode 2 — AI DJ script, showing tension):**
+```
+🎙️ "Alright, gym warriors — up next is 'Gym Hero' by Max Pulse. I know you're feeling down
+today, but trust me, this 132 BPM track is going to get you moving whether you like it or
+not. Sometimes the beat wins."
+```
+*This profile intentionally tests genre/mood conflict — the system correctly prioritises energy match for high-energy context even though no sad pop songs exist in the library.*
 
+---
+
+## Design Decisions and Trade-offs
+
+**Why content-based filtering instead of collaborative filtering?**
+Collaborative filtering requires user interaction data (ratings, plays, skips). For a classroom project with a fixed dataset, content-based filtering is more transparent and educational — you can directly see why each song scored what it scored.
+
+**Why a local knowledge base instead of a live API?**
+Retrieval from a local folder is deterministic, free, and fast. It also demonstrates the RAG pattern more clearly than a live search would — you can inspect exactly what text the LLM received. The trade-off is limited coverage: artists without a `.txt` file get 0% confidence and no bio-grounded script.
+
+**Why genre is weighted +2.0 while mood is only +1.0?**
+Genre is treated as a stronger signal because it's a broader category filter — a user who wants rock doesn't want lofi regardless of mood alignment. This was a deliberate design choice documented in `model_card.md`, and it shows clearly in the Adversarial profile results.
+
+**Why OpenRouter instead of a major provider?**
+Google Gemini's free tier had `limit: 0` quota issues across multiple projects. OpenRouter provides a vendor-neutral gateway to multiple models including free tiers, making it more reliable for development. The code is provider-agnostic — swapping to any OpenAI-compatible endpoint requires changing one URL and one model string.
+
+**Why log to `system.log` in JSON format?**
+JSON logging makes the log machine-readable for future analysis. Every entry captures timestamp, song, score, context, confidence, and guardrail status — enough to reconstruct what the system did on any run.
+
+---
+
+## Testing Summary
+
+**What the tests cover:**
+- `score_song()` — genre match, mood match, energy proximity, acoustic bonus, multi-genre lists
+- `load_artist_bio()` — file found, file missing, slug conversion from artist name
+- `guardrail_check()` — name present, name absent, empty bio, case insensitivity
+- `compute_confidence_score()` — zero without bio, scaling with context keywords, energy range match
+- `load_songs()` — correct row count, correct type casting
+
+**What worked:**
+All 20 tests pass. The scoring logic is deterministic and easy to unit test because it's pure math with no external dependencies. The guardrail tests were the most valuable — they caught an edge case where very short name fragments (like "The" in "The Weeknd") would have falsely passed the check. The fix was to require `len(part) > 2`.
+
+**What didn't work initially:**
+The `Recommender.recommend()` class method was a TODO stub in the original code and was silently returning unscored songs. This made the original tests pass vacuously (they checked `results[0].genre == "pop"` which happened to be true by accident). Implementing the real logic exposed this.
+
+**What I'd add with more time:**
+- End-to-end integration tests that mock the LLM and assert the DJ script contains expected artist facts
+- Property-based testing for score bounds (score should always be 0.0–5.5 given valid inputs)
+- A test that verifies every artist in `songs.csv` has a corresponding knowledge base file
+
+---
 
 ## Reflection
 
-Read and complete `model_card.md`:
+**What this project taught me about AI:**
 
-[**Model Card**](model_card.md)
+The biggest insight was that recommendation systems aren't "understanding" music — they're doing fast math on patterns. Changing the genre weight from 1.5 to 2.0 completely shifted what the system considered a good recommendation. This made me realise how easy it is to introduce bias by tweaking a single number, which is why the model card documents every weight decision explicitly.
 
-Write 1 to 2 paragraphs here about what you learned:
+The RAG component taught me something different: retrieved context is only as useful as the guardrail that validates it. Without the guardrail check, a mismatched bio file would silently produce confident-sounding DJ scripts full of wrong facts. The pattern of "retrieve → verify → generate" is the right order of operations for any RAG system that needs to be trustworthy.
 
-Building this simulation made me realize that recommendation systems are basically just taking someone’s “vibe” and turning it into numbers. Every song gets broken down into features, and then the system just compares those to what the user wants. What actually matters is the “algorithm recipe” like how much weight I give to genre vs. mood vs. energy because that completely changes what gets recommended. The system isn’t actually understanding the music at all, it’s just doing math and picking whatever is closest to the user’s preferences.
+**What this project taught me about problem-solving:**
 
-I also started to see how bias naturally shows up depending on how those weights are set. For example, since I weighted genre more heavily, the system would sometimes pick a song in the “right” genre even if the mood didn’t match what the user asked for. That kind of creates a filter bubble, where certain songs or even whole genres get pushed out just because of how I designed the scoring. When I tested edge cases, it became clear that if you prioritize things like energy over mood, the system can completely miss the point and recommend something that technically fits the numbers but feels totally off. It made me realize how easy it is for the actual human intent to get lost just because of how the math is set up.
+The persistent environment issues (Python aliases, venv deactivation on shell reload) taught me that tooling problems can look like code problems for a long time. Debugging always means isolating the variable — which is why `python3 -c "import anthropic; print(anthropic.__file__)"` was more useful than reading the error message for the tenth time.
 
----
-
-
-
-
-## 7. `model_card_template.md`
-
-Combines reflection and model card framing from the Module 3 guidance. :contentReference[oaicite:2]{index=2}  
-
-```markdown
-# 🎧 Model Card: Music Recommender Simulation
-
-## 1. Model Name  
-
-Give your model a short, descriptive name.  
-Example: **VibeRank v1.0**  
+Building a system that logs, tests, and validates its own outputs feels different from building one that just runs. It's slower to build but significantly easier to trust and improve.
 
 ---
 
-## 2. Intended Use  
+## Demo
 
-This is a classroom simulation built to show how content-based filtering actually works under the hood. It recommends a ranked list of 5 songs from a small dataset based on a user’s genre, mood, and energy preferences. It assumes the user has a fixed “vibe profile,” so it’s not meant for real-world or production use, just learning how recommender systems think.
+*[Loom walkthrough link — add before submission]*
 
----
-
-## 3. How the Model Works  
-
-This model basically acts like a “vibe matcher” that turns music into numbers and compares them to what the user wants.
-
-Each song has three features: genre, mood, and energy. The system then scores each song based on how close it is to the user’s preferences.
-
-Genre match gets the biggest boost (+2.0) since it’s treated as the strongest signal.
-Mood match adds a smaller boost (+1.0).
-Energy is handled by checking how close the song’s energy is to the user’s target using a simple distance formula, so closer = better.
-
-I also added explanation text for each recommendation so it’s not just a black box—you can actually see why a song was picked (like “Genre match +2.0”).
+The walkthrough shows:
+1. Running Mode 1 (offline scoring) across all four profiles
+2. Running Mode 2 (AI DJ) with the Melancholic Rock profile, showing bio retrieval and confidence scoring
+3. Running the pytest suite with all 20 tests passing
 
 ---
 
-## 4. Data  
+## Tech Stack
 
-The dataset has about 15–20 songs stored in a CSV file. It started off pretty basic (pop, lofi, etc.), but I added more variety like melancholic rock tracks (Radiohead, Soundgarden, etc.) to make it more interesting.
-
-That said, the data is still pretty Western/mainstream-heavy and doesn’t really capture deeper things like lyrics, subgenres, or musical complexity so it’s still kind of a simplified version of real music taste.
-
----
-
-## 5. Strengths  
-
-The model works really well when the user’s preferences line up with what’s in the dataset. For example, when I tested a melancholic rock profile, it actually pulled really accurate “sad rock” songs at the top. So within a specific vibe, it does a solid job of locking in and finding matches.
-
----
-
-## 6. Limitations and Bias 
-
-One big issue is “label bias.” Since genre is weighted the most, the model will sometimes choose the “right genre” over the “right mood,” even when that doesn’t really match what the user asked for.
-
-It also has a diversity problem because the dataset is small so the same songs keep showing up over and over again.
-
-On top of that, it completely ignores emotional or cultural context. For example, it treats a song like Hurt by Johnny Cash as just numbers, not something emotionally heavy. So small numerical differences can outweigh actual human meaning.
+| Layer | Technology |
+|---|---|
+| Language | Python 3.13 |
+| Scoring engine | Custom content-based filter (`recommender.py`) |
+| LLM provider | OpenRouter (Llama 3.1 8B via OpenAI-compatible API) |
+| Knowledge base | Local `.txt` files, slug-based retrieval |
+| Logging | Python `logging` module → `system.log` (JSON lines) |
+| Testing | pytest (20 tests) |
+| UI | Command-line (Streamlit app available in `app.py`) |
 
 ---
-
-## 7. Evaluation  
-
-I tested it using four profiles: Default Pop, Melancholic Rock, Chill Lofi, and an adversarial high-energy “weeper” profile. I mainly looked at how the top results changed when I adjusted weights.
-
-What stood out was how sensitive the system is when I increased the energy weight, it basically stopped caring about mood and started recommending high-energy “gym” type songs instead of sad ones. It made it really clear how much the results depend on the math setup.
-
----
-
-## 8. Future Work  
-
-If I had more time, I’d improve it by:
-
-Adding a “serendipity” factor so users don’t get stuck in the same vibe loop
-Using acoustic features like acousticness to better separate instrumental vs. electronic tracks
-Improving explanations so it can say things like “this is similar to your favorite artist” instead of just raw score breakdowns
-
----
-
-## 9. Personal Reflection  
-
-This project made it clear that recommendation systems aren’t actually “understanding” music, they’re just doing fast math on patterns. What surprised me most is how easy it is to accidentally introduce bias just by tweaking a weight slightly. Something like changing 1.5 to 2.0 can completely shift what the system thinks is “good.”
-
-It honestly changed how I look at apps like Spotify, because now I realize the reason I sometimes get stuck in the same type of songs is probably because the system is optimizing for numbers, not vibes.
